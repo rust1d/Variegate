@@ -73,7 +73,7 @@ contract('VariegateRewards', function (accounts) {
   let data;
 
   beforeEach('setup contract for each test', async function() {
-    contract = await VariegateRewards.new('TestRewards', 'TST$');
+    contract = await VariegateRewards.new();
   });
 
   it('has a name and symbol', async function () {
@@ -81,72 +81,76 @@ contract('VariegateRewards', function (accounts) {
     assert.equal(await contract.symbol(), 'TST$');
   });
 
-  // it('adds tokens', async function () {
-  //   transaction = await contract.addToken(coins.useless.address, { from: owner });
-  //   expectEvent(transaction, 'TokenAdded', { token: coins.useless.address, name: coins.useless.name });
-  //   assert.equal(await contract.tokens(), 1);
-  //   assert.equal(await contract.tokenAt(1), coins.useless.address);
-  //   data = await contract.token(coins.useless.address);
-  //   assert.equal(data.index, 1);
-  //   assert.notEqual(data.added, 0);
-  // });
+  it('adds tokens', async function () {
+    transaction = await contract.addToken(coins.useless.address, { from: owner });
+    expectEvent(transaction, 'TokenAdded', { token: coins.useless.address, name: coins.useless.name });
+    assert.equal(await contract.tokens(), 1);
+    assert.equal(await contract.tokenAt(1), coins.useless.address);
+    data = await contract.token(coins.useless.address);
+    assert.equal(data.index, 1);
+    assert.notEqual(data.added, 0);
+  });
 
-  // it('deletes tokens', async function () {
-  //   await contract.addToken(coins.sdhp.address, { from: owner });
-  //   await contract.addToken(coins.useless.address, { from: owner });
-  //   transaction = await contract.deleteToken(coins.sdhp.address, { from: owner });
-  //   expectEvent(transaction, 'TokenDeleted', { token: coins.sdhp.address, name: coins.sdhp.name });
-  //   assert.equal(await contract.tokens(), 1);
-  //   assert.equal(await contract.tokenAt(1), coins.useless.address);
-  //   data = await contract.token(coins.useless.address);
-  //   assert.equal(data.index, 1);
-  //   data = await contract.token(coins.sdhp.address);
-  //   assert.equal(data.index, 0);
-  //   assert.equal(data.added, 0);
-  // });
+  it('adds only valid tokens', async function () {
+    await expectRevert(contract.addToken(owner, { from: owner }), "Token Invalid");
+  });
 
-  // it('fills token slots one by one up to 10', async function () {
-  //   await contract.addToken(coins.sdhp.address, { from: owner });
-  //   for (let idx=1;idx<=10;idx++) {
-  //     transaction = await contract.setSlot(0, coins.sdhp.address);
-  //     expectEvent(transaction, 'SlotSet', { slot: idx.toString(), token: coins.sdhp.address, name: coins.sdhp.name });
-  //     assert.equal(await contract.slots(), idx);
-  //     assert.equal(await contract.tokenInSlot(idx), coins.sdhp.address);
-  //   }
-  //   assert.equal(await contract.slots(), 10);
-  //   await expectRevert(contract.setSlot(0, coins.sdhp.address), 'All slots filled');
-  //   assert.equal(await contract.slots(), 10);
-  // });
+  it('deletes tokens', async function () {
+    await contract.addToken(coins.sdhp.address, { from: owner });
+    await contract.addToken(coins.useless.address, { from: owner });
+    transaction = await contract.deleteToken(coins.sdhp.address, { from: owner });
+    expectEvent(transaction, 'TokenDeleted', { token: coins.sdhp.address, name: coins.sdhp.name });
+    assert.equal(await contract.tokens(), 1);
+    assert.equal(await contract.tokenAt(1), coins.useless.address);
+    data = await contract.token(coins.useless.address);
+    assert.equal(data.index, 1);
+    data = await contract.token(coins.sdhp.address);
+    assert.equal(data.index, 0);
+    assert.equal(data.added, 0);
+  });
 
-  // it('replaces a token slot', async function () {
-  //   await contract.addToken(coins.sdhp.address, { from: owner });
-  //   await contract.addToken(coins.useless.address, { from: owner });
+  it('fills token slots one by one up to 10', async function () {
+    await contract.addToken(coins.sdhp.address, { from: owner });
+    for (let idx=1;idx<=10;idx++) {
+      transaction = await contract.setSlot(0, coins.sdhp.address);
+      expectEvent(transaction, 'SlotSet', { slot: idx.toString(), token: coins.sdhp.address, name: coins.sdhp.name });
+      assert.equal(await contract.slots(), idx);
+      assert.equal(await contract.tokenInSlot(idx), coins.sdhp.address);
+    }
+    assert.equal(await contract.slots(), 10);
+    await expectRevert(contract.setSlot(0, coins.sdhp.address), 'All slots filled');
+    assert.equal(await contract.slots(), 10);
+  });
 
-  //   await contract.setSlot(0, coins.sdhp.address);
-  //   await contract.setSlot(0, coins.sdhp.address);
-  //   await contract.setSlot(0, coins.sdhp.address);
-  //   await contract.setSlot(2, coins.useless.address);
+  it('replaces a token slot', async function () {
+    await contract.addToken(coins.sdhp.address, { from: owner });
+    await contract.addToken(coins.useless.address, { from: owner });
 
-  //   assert.equal(await contract.slots(), 3);
-  //   assert.equal(await contract.tokenInSlot(1), coins.sdhp.address);
-  //   assert.equal(await contract.tokenInSlot(2), coins.useless.address);
-  //   assert.equal(await contract.tokenInSlot(3), coins.sdhp.address);
-  // });
+    await contract.setSlot(0, coins.sdhp.address);
+    await contract.setSlot(0, coins.sdhp.address);
+    await contract.setSlot(0, coins.sdhp.address);
+    await contract.setSlot(2, coins.useless.address);
 
-  // it('deletes a token slot', async function () {
-  //   await contract.addToken(coins.sdhp.address, { from: owner });
-  //   await contract.addToken(coins.useless.address, { from: owner });
-  //   await contract.addToken(coins.doge.address, { from: owner });
+    assert.equal(await contract.slots(), 3);
+    assert.equal(await contract.tokenInSlot(1), coins.sdhp.address);
+    assert.equal(await contract.tokenInSlot(2), coins.useless.address);
+    assert.equal(await contract.tokenInSlot(3), coins.sdhp.address);
+  });
 
-  //   await contract.setSlot(0, coins.sdhp.address);
-  //   await contract.setSlot(0, coins.useless.address);
-  //   await contract.setSlot(0, coins.doge.address);
-  //   await contract.deleteSlot(2);
+  it('deletes a token slot', async function () {
+    await contract.addToken(coins.sdhp.address, { from: owner });
+    await contract.addToken(coins.useless.address, { from: owner });
+    await contract.addToken(coins.doge.address, { from: owner });
 
-  //   assert.equal(await contract.slots(), 2);
-  //   assert.equal(await contract.tokenInSlot(1), coins.sdhp.address);
-  //   assert.equal(await contract.tokenInSlot(2), coins.doge.address);
-  // });
+    await contract.setSlot(0, coins.sdhp.address);
+    await contract.setSlot(0, coins.useless.address);
+    await contract.setSlot(0, coins.doge.address);
+    await contract.deleteSlot(2);
+
+    assert.equal(await contract.slots(), 2);
+    assert.equal(await contract.tokenInSlot(1), coins.sdhp.address);
+    assert.equal(await contract.tokenInSlot(2), coins.doge.address);
+  });
 
   it('gives rewards in active token', async function () {
     await contract.setMinimumBalance(1, { from: owner });
@@ -171,14 +175,9 @@ contract('VariegateRewards', function (accounts) {
     transaction = await contract.withdrawFunds(holder1);
 
     console.log('doge balance', (await doge.balanceOf(holder1)).toString());
-
-      data = await contract.getSlot(1);
-      console.log(data);
-
-    // console.log(transaction);
-
+    data = await contract.getReportTokenInSlot(1);
+    console.log(data.symbol, data.name, 'claims', data.claims.toNumber(), 'balance', fromWei(data.balance), 'amount', fromWei(data.amount));
   });
-
 
   it('test 7 slots', async function () {
     await contract.setMinimumBalance(1, { from: owner });
@@ -198,15 +197,15 @@ contract('VariegateRewards', function (accounts) {
     for (let idx=1;idx<=30;idx++) {
       timeTravel(one_day);
       let slot = await contract.currentSlot();
-      data = await contract.getSlot(slot.toNumber());
-      console.log('slot', slot.toNumber(), 'Day', idx, 'the current token is', data.tokenName);
+      data = await contract.getReportTokenInSlot(0);
+      console.log('slot', slot.toNumber(), 'Day', idx, 'the current token is', data.symbol, data.name, 'claims', data.claims.toNumber(), 'balance', fromWei(data.balance), 'amount', fromWei(data.amount));
       await contract.send(toWei(1), { from: owner });
       await contract.processClaims(750_000);
     }
-
+    console.log('\n30 day run complete.');
     for (let idx=1;idx<=7;idx++) {
-      data = await contract.getSlot(idx);
-      console.log('Slot', idx, ':', data.tokenName, 'active', data.data.active, 'claims', data.data.claims, 'balance', data.data.balance, 'amount', data.data.amount);
+      data = await contract.getReportTokenInSlot(idx);
+      console.log('Summary of slot', idx, data.symbol, data.name, 'claims', data.claims.toNumber(), 'balance', fromWei(data.balance), 'amount', fromWei(data.amount));
     }
   });
 });
