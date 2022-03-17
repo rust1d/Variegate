@@ -107,9 +107,9 @@ contract('VariegateRewards', function (accounts) {
   });
 
   it('allows owner to set minimum balance', async function () {
-    transaction = await contract.setMinimumBalance(1, { from: owner });
+    transaction = await contract.setMinimumBalance(333333, { from: owner });
     expectEvent(transaction, 'MinimumBalanceChanged');
-    assert.equal(await contract.minimumBalance(), '1');
+    assert.equal(fromWei(await contract.minimumBalance()), 333333);
   });
 
   it('requires the value of MinimumBalance to change if updated', async function () {

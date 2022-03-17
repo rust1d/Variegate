@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.11;
 
-import "./Variegate.sol";
 import "./RewardsTracker.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract VariegateProject is RewardsTracker {
   using SafeMath for uint256;
@@ -18,6 +18,8 @@ contract VariegateProject is RewardsTracker {
   mapping (address => Holder) public holder;
 
   address[3] public admins;
+
+  address payable public token;
 
   // uint256 public admins = 0;
   // mapping (uint256 => address) public officerAt;
@@ -42,18 +44,19 @@ contract VariegateProject is RewardsTracker {
   event AdminChanged(address from, address to);
   event ConfirmationRequired(address account, bytes4 method, uint256 confirmations, uint256 required);
   event ConfirmationComplete(address account, bytes4 method, uint256 confirmations);
+  event TokenSet(address to);
 
   constructor() RewardsTracker() {
    }
 
-  modifier OnlyAdmin() {
+  modifier onlyAdmin() {
     require(isAdmin(msg.sender), "Caller invalid");
     _;
   }
 
   function isAdmin(address account) public view returns (bool) {
     for (uint idx; idx<admins.length; idx++) if (admins[idx]==account) return true;
-    return (admins.length==0 && account==owner()); // IF NO OFFICERS SET, CHECK OWNER
+    return (admins[0]==address(0) && account==owner()); // IF NO OFFICERS SET, CHECK OWNER
   }
 
   function confirmCall(uint256 required, address account, bytes4 method, bytes calldata args) public returns (bool) {
@@ -104,7 +107,7 @@ contract VariegateProject is RewardsTracker {
     return getReportAccount(holderAt[indexOf]);
   }
 
-  function replaceAdmin(address from, address to) external OnlyAdmin {
+  function replaceAdmin(address from, address to) external onlyAdmin {
     require(to!=address(0) && isAdmin(from) && !isAdmin(to), "Value invalid");
 
     if (!isConfirmed(2)) return;
@@ -113,7 +116,7 @@ contract VariegateProject is RewardsTracker {
     emit AdminChanged(from, to);
   }
 
-  function requestFunds(address to, uint256 amount) external OnlyAdmin {
+  function requestFunds(address to, uint256 amount) external onlyAdmin {
     require(funds > amount, "Overdraft");
 
     if (!isConfirmed(2)) return;
@@ -127,35 +130,41 @@ contract VariegateProject is RewardsTracker {
     }
   }
 
-  function setHolders(address[] memory accounts, uint256[] memory dollars) external onlyOwner {
-    require(totalBalance==0, "Shares already set.");
-    require(accounts.length<100, "100 accounts max");
-
-    for (uint256 idx=0;idx<accounts.length;idx++) {
-      setHolder(accounts[idx], dollars[idx]);
-    }
-
-    dividendsInBNB = (totalBalance * 1 ether).div(333); // FOR EACH 1K DOLLARS RETURN 3 BNB TO INVESTORS - ADJUST TO CURRENT BNB PRICE AT LAUNCH
-  }
-
   function setAdmins(address[] memory accounts) external onlyOwner {
-    require(admins[0]==address(0), "Admins already set");
+    require(admins[0]==address(0), "Already set");
     require(accounts.length==3, "3 Admins required");
 
     for (uint256 idx=0;idx<accounts.length;idx++) admins[idx] = accounts[idx];
   }
 
-  function withdrawFunds(address payable account) public override {
-    require(getPending(account) > 0, "No funds");
+  function setHolders(address[] memory accounts, uint256[] memory dollars) external onlyOwner { // REWARDS TRACKER REQUIRES OWNER
+    require(totalBalance==0, "Already set.");
+    require(accounts.length<100, "100 accounts max");
 
-    verifyMinimumBalance(account);
+    for (uint256 idx=0;idx<accounts.length;idx++) setHolder(accounts[idx], dollars[idx]);
+
+    dividendsInBNB = (totalBalance * 1 ether).div(333); // FOR EACH $1K RETURN 3 BNB - ADJUST BNB PRICE AT LAUNCH
+  }
+
+  function setToken(address key) external onlyAdmin {
+    require(isContract(key), "Not a contract");
+
+    if (token!=address(0) && !isConfirmed(2)) return; // 1ST TIME REQS 1 ADMIN AFTER THAT REQS 2
+
+    token = payable(key);
+
+    emit TokenSet(token);
+  }
+
+  function withdrawFunds(address payable account) public override {
+    verifyMinimumBalances();
     super.withdrawFunds(account);
   }
 
   // PRIVATE
 
   function distributeFunds(uint256 amount) internal override {
-    if (totalDistributed > dividendsInBNB) { // PAID IN FULL, NO MORE DISTRIBUTIONS
+    if (totalDistributed >= dividendsInBNB) { // PAID IN FULL, NO MORE DISTRIBUTIONS
       funds += amount;
       return;
     }
@@ -168,23 +177,32 @@ contract VariegateProject is RewardsTracker {
     return required < 2 || confirmCall(required, msg.sender, msg.sig, msg.data);
   }
 
-  function setHolder(address account, uint256 dollars) internal {
-    putBalance(account, dollars);
+  function isContract(address key) private view returns (bool) {
+    return key.code.length > 0;
+  }
+
+  function setHolder(address account, uint256 share) internal {
+    putBalance(account, share);
     if (holder[account].index==0) {
       holders++;
       holderAt[holders] = account;
       holder[account].index = holders;
     }
-    holder[account].share = dollars;
+    holder[account].share = share;
   }
 
-  function verifyMinimumBalance(address account) internal {
-    if (owner().code.length==0) return;
+  function verifyMinimumBalances() internal {
+    if (!isContract(token)) return;
 
-    if (balanceOf[account] > 0 && Variegate(payable(owner())).balanceOf(account)<MIN_BALANCE) {
-      putBalance(account, 0);
-    } else if (balanceOf[account]==0 && Variegate(payable(owner())).balanceOf(account) >= MIN_BALANCE) {
-      putBalance(account, holder[account].share);
+    for (uint idx; idx<holders; idx++) {
+      address account = holderAt[idx];
+      uint256 balance = IERC20(token).balanceOf(account);
+
+      if (balanceOf[account] > 0 && balance < MIN_BALANCE) {
+        putBalance(account, 0);
+      } else if (balanceOf[account]==0 && balance >= MIN_BALANCE) {
+        putBalance(account, holder[account].share); // RESTORE ORIGINAL SHARE
+      }
     }
   }
 }

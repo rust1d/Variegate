@@ -25,15 +25,17 @@ contract Variegate is ERC20, Ownable {
   uint256 public constant MAX_WALLET = 15_000_000 ether; // MAX PER WALLET: 1.5%
   uint256 public constant MAX_SELL = 5_000_000 ether; // MAX PER SELL: 0.5%
 
-  bool public isOpenToPublic = false;
-  uint256 public accumulatedRewards = 0;
   uint256 public accumulatedProject = 0;
-  uint16 public feeToBuy = 8;
-  uint16 public feeToSell = 12;
-  uint16 public feeProject = 2;
-
-  uint256 public swapThreshold = 5_000_000 ether; // CONTRACT SWAPS TO BSD
+  uint256 public accumulatedRewards = 0;
   uint256 public gasLimit = 300_000; // GAS FOR REWARDS PROCESSING
+  uint256 public swapThreshold = 5_000_000 ether; // CONTRACT SWAPS TO BSD
+
+  uint16 public constant FEE_PROJECT = 2;
+  uint16 public constant FEE_TO_BUY = 8;
+  uint16 public constant FEE_TO_SELL = 12;
+
+  bool public isOpenToPublic = false;
+  bool private swapping = false;
 
   // MAPPINGS
   mapping (address => bool) public autoMarketMakers; // Any transfer to these addresses are likely sells
@@ -51,12 +53,7 @@ contract Variegate is ERC20, Ownable {
   event SetAutomatedMarketMakerPair(address indexed pair, bool active);
   event MarketCapCalculated(uint256 price, uint256 marketCap, uint256 tokens, uint256 value);
 
-  // INTERNAL VARS
-  bool private swapping = false;
-
-  // INITIALIZE CONTRACT
   constructor() ERC20("Variegate", "$VARI") {
-    // SETUP PANCAKESWAP
     address ROUTER_PCSV2_MAINNET = 0x10ED43C718714eb63d5aA57B78B54704E256024E;
     // address ROUTER_PCSV2_TESTNET = 0xD99D1c33F9fC3444f8101754aBC46c52416550D1;
     // address ROUTER_FAKEPCS_TESTNET = 0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3;
@@ -78,27 +75,21 @@ contract Variegate is ERC20, Ownable {
     _;
   }
 
+  modifier onlyRewards() {
+    require((!isContract(address(rewards)) && _msgSender()==owner()) || address(rewards)==_msgSender(), "Caller invalid");
+    _;
+  }
+
   receive() external payable {
     emit FundsReceived(msg.sender, msg.value);
   }
 
-  // function test(address account, uint256 amount) public returns(uint256 expires, uint256 count, bytes memory args) {
-  //   // return abi.encode(msg.sig, msg.data);
-  //   project.confirmCall(msg.sender, msg.sig, msg.data);
-
-  //   (expires, count, args) = project.confirm(msg.sig);
-  // }
-
-  // function detest(bytes calldata data) public pure returns(bytes memory args, bytes4 sigg) { //
-  //    (sigg, args) = abi.decode(data, (bytes4, bytes));
-
-  //   // sigg = msg.sig;
-  //   // (funct, account, amount) = abi.decode(data, (uint256, address, uint256));
-  //   // (sigg, account, amount) = abi.decode(args, (bytes4, address, uint256));
-  // }
-
   function isAdmin(address account) public view returns(bool) {
     return (!isContract(address(project)) && account==owner()) || (isContract(address(project)) && project.isAdmin(account));
+  }
+
+  function confirmCall(uint256 required, address account, bytes4 method, bytes calldata args) public onlyRewards returns (bool) {
+    return required < 2 || !isContract(address(project)) || project.confirmCall(required, account, method, args);
   }
 
   function openToPublic() external onlyAdmin { // NO GOING BACK
@@ -106,21 +97,27 @@ contract Variegate is ERC20, Ownable {
     require(address(this).balance > 0, "Must have bnb to pair for launch");
     require(balanceOf(address(this)) > 0, "Must have tokens to pair for launch");
 
+    if (!isConfirmed(2)) return;
+
     isOpenToPublic = true;
 
     // INITIAL LIQUIDITY GOES TO OWNER TO LOCK
     // addLiquidity(balanceOf(address(this)), address(this).balance);
   }
 
-  function setAutomatedMarketMakerPair(address pair, bool value) external onlyAdmin {
+  function setAutomatedMarketMakerPair(address pair, bool setting) external onlyAdmin {
     require(pair != uniswapV2Pair, "Value invalid");
-    require(autoMarketMakers[pair] != value, "Value unchanged");
-    autoMarketMakers[pair] = value;
-    emit SetAutomatedMarketMakerPair(pair, value);
+    require(autoMarketMakers[pair] != setting, "Value unchanged");
+
+    if (!isConfirmed(2)) return;
+
+    autoMarketMakers[pair] = setting;
+    emit SetAutomatedMarketMakerPair(pair, setting);
   }
 
   function setFeeless(address account, bool setting) external onlyAdmin {
     require(isFeeless[account]!=setting, "Value unchanged");
+
     if (!isConfirmed(2)) return;
 
     isFeeless[account] = setting;
@@ -130,17 +127,24 @@ contract Variegate is ERC20, Ownable {
   function setGasLimit(uint256 gas) external onlyAdmin {
     require(gas >= 250_000 && gas <= 750_000, "Value invalid");
     require(gas != gasLimit, "Value unchanged");
+
+    if (!isConfirmed(2)) return;
+
     emit GasLimitChanged(gasLimit, gas);
     gasLimit = gas;
   }
 
   function setPresale(address account, bool setting) external onlyAdmin {
+    if (!isConfirmed(2)) return;
+
     isPresale[account] = setting;
   }
 
   function setProjectContract(address newContract) external onlyAdmin {
     require(newContract != address(project), "Value unchanged");
     require(isContract(newContract), "Not a contract");
+
+    if (!isConfirmed(3)) return;
 
     emit ProjectContractChanged(address(project), newContract);
     project = VariegateProject(payable(newContract));
@@ -151,6 +155,9 @@ contract Variegate is ERC20, Ownable {
     require(isContract(newContract), "Not a contract");
     require(Ownable(newContract).owner() == address(this), "Token must own tracker");
 
+    if (!isConfirmed(3)) return;
+
+    if (isContract(address(rewards))) rewards.transferOwnership(owner());
     emit RewardsContractChanged(address(rewards), newContract);
     rewards = VariegateRewards(payable(newContract));
   }
@@ -184,11 +191,11 @@ contract Variegate is ERC20, Ownable {
         uint256 taxRewards = 0;
         if (autoMarketMakers[to] && from!=address(uniswapV2Router)) { // SELL
           require(amount <= MAX_SELL, "Sell over limit");
-          taxTotal = amount.mul(feeToSell).div(100);
-          taxProject = taxTotal.mul(feeProject).div(feeToSell);
+          taxTotal = amount.mul(FEE_TO_SELL).div(100);
+          taxProject = taxTotal.mul(FEE_PROJECT).div(FEE_TO_SELL);
         } else { // BUY
-          taxTotal = amount.mul(feeToBuy).div(100);
-          taxProject = taxTotal.mul(feeProject).div(feeToBuy);
+          taxTotal = amount.mul(FEE_TO_BUY).div(100);
+          taxProject = taxTotal.mul(FEE_PROJECT).div(FEE_TO_BUY);
         }
         if (taxTotal > 0) {
           taxRewards = taxTotal.sub(taxProject);
@@ -228,7 +235,7 @@ contract Variegate is ERC20, Ownable {
   }
 
   function isConfirmed(uint256 required) private returns (bool) {
-    return !isContract(address(project)) || required < 2 || project.confirmCall(required, msg.sender, msg.sig, msg.data);
+    return required < 2 || !isContract(address(project)) || project.confirmCall(required, msg.sender, msg.sig, msg.data);
   }
 
   function isContract(address key) private view returns (bool) {

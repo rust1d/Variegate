@@ -16,12 +16,12 @@ contract VariegateRewards is RewardsTracker {
   struct Holder {
     uint256 index;
     uint256 balance;
-    uint32 added;
-    uint32 bought;
-    uint32 claimed;
-    uint32 sold;
     uint32 percent;
+    uint32 added;
     uint32 excluded;
+    uint32 bought;
+    uint32 sold;
+    uint32 claimed;
   }
 
   uint256 public holders = 0;
@@ -70,7 +70,7 @@ contract VariegateRewards is RewardsTracker {
     holder[owner()].excluded = stamp();
   }
 
-  modifier onlyAdmin() { // CALL COMES FROM THE PROJECT OR AN OFFICER OF THE PROJECT
+  modifier onlyAdmin() { // CALL COMES FROM OWNER OR PROJECT ADMIN
     require(_msgSender()==owner() || (isContract(owner()) && Variegate(payable(owner())).isAdmin(_msgSender())), "Caller invalid");
     _;
   }
@@ -161,13 +161,13 @@ contract VariegateRewards is RewardsTracker {
     return getReportToken(tokenInSlot[(slot==0) ? currentSlot() : slot]);
   }
 
-  // function getTokens() external view returns (string[] memory) {
-  //   string[] memory data = new string[](tokens);
-  //   for (uint256 idx=1; idx<=tokens; idx++) {
-  //     data[idx-1] = ERC20(tokenAt[idx]).name();
-  //   }
-  //   return data;
-  // }
+  function getTokens() external view returns (string[] memory) {
+    string[] memory data = new string[](tokens);
+    for (uint256 idx=1; idx<=slots; idx++) {
+      data[idx-1] = ERC20(tokenInSlot[idx]).name();
+    }
+    return data;
+  }
 
   function processClaims(uint256 gas) external {
     if (holders==0) return;
@@ -198,6 +198,8 @@ contract VariegateRewards is RewardsTracker {
   function setExcluded(address account, bool setting) external onlyAdmin {
     require(setting && holder[account].excluded==0 || !setting && holder[account].excluded!=0, "Value unchanged");
 
+    if (!isConfirmed(2)) return;
+
     holder[account].excluded = setting ? 0 : stamp();
     setBalance(account, holder[account].balance);
     emit ExcludedChanged(account, true);
@@ -211,6 +213,11 @@ contract VariegateRewards is RewardsTracker {
 
   function setMinimumBalance(uint256 newBalance) external onlyAdmin {
     require(newBalance != minimumBalance, "Value unchanged");
+    require(newBalance >= 100_000 && newBalance <= 500_000, "Value invalid");
+    newBalance = (newBalance * 1 ether);
+    require(minimumBalance > newBalance, "Value cannot increase");
+
+    if (!isConfirmed(2)) return;
 
     emit MinimumBalanceChanged(minimumBalance, newBalance);
     minimumBalance = newBalance;
@@ -240,6 +247,8 @@ contract VariegateRewards is RewardsTracker {
   function setStaking(bool setting) external onlyAdmin {
     require(isStakingOn!=setting, "Value unchanged");
 
+    if (!isConfirmed(2)) return;
+
     isStakingOn = setting;
     emit StakingChanged(!setting, setting);
   }
@@ -247,6 +256,8 @@ contract VariegateRewards is RewardsTracker {
   function setWaitingPeriod(uint256 inSeconds) external onlyAdmin {
     require(inSeconds != waitingPeriod, "Value unchanged");
     require(inSeconds >= 1 hours && inSeconds <= 1 days, "Value invalid");
+
+    if (!isConfirmed(2)) return;
 
     emit WaitingPeriodChanged(waitingPeriod, inSeconds);
     waitingPeriod = inSeconds;
@@ -306,6 +317,10 @@ contract VariegateRewards is RewardsTracker {
     delete holderAt[holders];
     holders--;
     holder[account].index = 0;
+  }
+
+  function isConfirmed(uint256 required) private returns (bool) {
+    return required < 2 || !isContract(owner()) || Variegate(payable(owner())).confirmCall(required, msg.sender, msg.sig, msg.data);
   }
 
   function isContract(address key) private view returns (bool) {
