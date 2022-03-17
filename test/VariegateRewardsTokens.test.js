@@ -92,7 +92,7 @@ contract('VariegateRewards', function (accounts) {
   });
 
   it('adds only valid tokens', async function () {
-    await expectRevert(contract.addToken(owner, { from: owner }), "Token Invalid");
+    await expectRevert(contract.addToken(owner, { from: owner }), "Not a contract");
   });
 
   it('deletes tokens', async function () {

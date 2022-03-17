@@ -17,25 +17,26 @@ regular basis.
 
 **Transfers** between wallets are never subjected to any fees.
 
-**Buys** are subjected to a fee of 8%. 6% is sent to the rewards system and 2% is sent
-to the project wallet.
+**Buys** are subjected to a total fee of 8% - 6% rewards / 2% project
 
-**Sells** are subjected to a fee of 12%. 10% is sent to the rewards system and 2% is
-sent to the project wallet.
+**Sells** are subjected to a total fee of 12% - 10% rewards / 2% project
 
 ## Rewards
 
 Rewards tokens collected from sell fees are converted into BNB. Holders meeting the
 minimum required balance will automatically earn a share of these rewards. Rewards are
 earned proportionate to the holder's eligible tokens in the pool of all eligible tokens.
-Any holder with the minimum balance will start with 50% of their tokens added to the pool
-of tokens tracked. This amount will increased by 1% for each day the holder goes without
-selling until 100% is reached and they are fully vested. Any reduction of tokens, either
-by selling or transferring, will drop the holder back to 50% and restart the vesting
-process. Buying or receiving more tokens will immediately include those tokens in the
-rewards system at the current vesting percent.
 
-* The percent of tokens eligible to earn rewards is `50% + 1% * days since sell` capped at 100%.
+### Diamond Hands Staking
+
+Any holder with the minimum balance will have at least 50% of their tokens staked in
+the tracking pool. This percent will increased by 1% for each day the wallet goes without
+selling until 100% is reached and their tokens are fully staked. _Any_ reduction of
+tokens, either by selling or transferring, will drop the stake back to 50% and restart
+the process at 50%. Any additional tokens bought or received will immediately be included
+tracking pool at the holder's current staked percent.
+
+* The percent of tokens tracked is `50% + 1% per day since last sell (max 100%)`
 
 ### Claiming Rewards
 
@@ -46,43 +47,49 @@ processed during each transaction depending upon current gas prices. Claims are
 processed in a circular order from the first holder to the last. Periods of low
 transactions will process less claims so manually claiming rewards is an option.
 
-Holders can use the `rewards.withdrawFunds` function to manually claim pending
+Holders can use the `withdrawFunds` function to manually claim pending
 rewards once per waiting period.
 
 ### Rewards Reporting
 
-Holders can use the `rewards.getRewardsReport` function to view a summary report of
+Holders can use the `getRewardsReport` function to view a summary report of
 the rewards tracker.
 
-Holders can use the `rewards.getRewardsReportAccount` function to get a summary report
+Holders can use the `getRewardsReportAccount` function to get a summary report
 of their account in the rewards tracker.
 
 ## Project Funding
 
 Project tokens collected from sell fees are converted into BNB and sent to the project
-wallet to be used for marketing, utility development and discretionary spending.
+contract to be used for marketing, utility development and discretionary spending.
+A small portion of project funds will be used to repay expenses incurred launching
+the token. The accounts and amount to be repaid are publicly visible and transparent.
 
 ## Contract Functions
 
 There are 3 contracts that manage the Variegate ecosystem.
 
-1. Variegate - ERC20 token handling transaction fees
+1. Variegate - ERC20 token handling transaction fees and distribution.
 2. VariegateRewards - smart contract handling rewards system
 3. VariegateProject - smart contract handling project funds and function permissions
 
-### Variegate Functions
+### Variegate Token Contract Functions
+
+These are the public functions that can be called on the Variegate token contract.
 
 `accumulatedProject`
 
-Total tokens currently held by the project accumulator.
+Total tokens currently held by the project accumulator. When the `swapThreshold` is
+reached these are sold and sent to the VariegateProject contract.
 
 `accumulatedRewards`
 
-Total tokens currently held by the rewards accumulator.
+Total tokens currently held by the rewards accumulator. When the `swapThreshold` is
+reached these are sold and sent to the VariegateRewards contract.
 
 `gasLimit`
 
-Maximum amount of gas to spend processing rewards on each transaction.
+Maximum amount of gas to spend processing rewards on a token transfer.
 
 `isAdmin(address)`
 
@@ -100,7 +107,9 @@ Returns True if the address can transfer tokens before public release.
 
 Threshold at which accumulated tokens are converted to BNB.
 
-### VariegateRewards Functions
+### VariegateRewards Contract Functions
+
+These are the public functions that can be called on the VariegateRewards contract.
 
 `currentSlot()`
 
@@ -180,7 +189,7 @@ Displays internal tracking data for the holder account if it exists.
 
 Displays minimum tokens required to qualify for rewards
 
-`processClaims(gas)`
+`processClaims(gas)` _requires gas_
 
 Processes pending rewards claims until supplied `gas` is exhausted.
 
@@ -215,191 +224,187 @@ Display internal tracking data for the ERC20 rewards token if it exists.
 
 Displays current waiting period between claims in seconds.
 
-`withdrawFunds(address)`
+`withdrawFunds(address)` _requires gas_
 
 Allows a holder to manually withdraw pending rewards.
 
 
+### VariegateProject Contract Functions
+
+These are the public functions that can be called on the VariegateProject contract.
+
+`admins`
+
+List of the Variegate administrator account.
+
+`funds`
+
+Display current project funds available for withdraw.
+
+`getReport()`
+
+Displays payback system summary data
+
+* holderCount - Count of accounts being paid
+* totalDollars - Total start up USD to be repaid
+* totalBNB - Total BNB repaid to date
+
+`getReportAccount(address)`
+
+* dollars - start up USD to be repaid
+* depositedBNB - BNB deposited in account
+* withdrawnBNB - BNB withdrawn from account
+
+`holders`
+
+Count of accounts tracked by payback system.
+
+`holderAt(position)`
+
+Account indexed at this position.
+
+`holder(address)`
+
+Displays internal tracking data for the account if it exists.
+
+`isAdmin(address)`
+
+Returns true if address is a Variegate administrator.
+
+`paybackBNB`
+
+Total amount of BNB to be repaid for startup costs.
+
+`withdrawFunds(address)` _requires gas_
+
+Allows an account to withdraw their BNB.
 
 
 
-## Owner Functions
 
-`*` In order to call these functions the owner must provide gas.
+
+## Variegate Administrator
+
+The Variegate project enforces permissions across all Variegate contracts to ensure
+only approved administrators can access critical functions. Some functions will
+required approval from a 2nd admin and very sensitive functions will require the
+approval of all admins.
+
+### Variegate Token Administrator Functions
 
 `openToPublic`
 
-Allows owner to open the contract to the public. It cannot be undone.
+Allows owner to open the contract to the public.
 
 * Contract is closed to the public until opened by the owner. This cannot be undone.
 * When opened, the BNB and tokens held by the contract is converted to LP and sent to the owner to lock.
-* After opening liquidity wallet is set to the contract address and will never change.
-
-`processRewardsClaims`
-
-Allows owner to manually process pending token claims and update staking positions
-in the rewards system.
 
 `setAutomatedMarketMakerPair`
 
-Allows owner to add new LP pairs to the token. Necessary to support additional token
-features in the future.
+Add new LP pairs to the token. Necessary to support additional token features in the future.
 
 `setFeeless`
 
-Allows owner to add/remove accounts from paying fees on transactions. Necessary to
+Add/remove accounts from paying fees on transactions. Necessary to
 support additional token features in the future.
 
 `setGasLimit`
 
-Allows owner to change the amount of gas used during auto-processing of claims.
+Change the amount of gas used during auto-processing of claims.
 
 * Gas for auto-processing defaults to 300,000 wei and can be changed to a value
 between 250,000 and 750,000 wei.
 
 `setPresale`
 
-Allows owner to add/remove accounts from the presale list that allows transferring
+Add/remove accounts from the presale list that allows transferring
 tokens before the contract is public.
 
-`setProjectWallet`
+`setProjectContract` _requires confirmation by all admins_
 
-Allows owner to change the address project funds are sent to.
+Changes the project contract.
 
-`setRewardsExcludedAddress`
+`setRewardsContract` _requires confirmation by all admins_
 
-Allows owner to remove accounts from participating in rewards. Necessary to support
-additional token features in the future.
+Changes the rewards contract.
 
-`setRewardsMinimumBalance`
 
-* The minimum required balance defaults to 15 million and can be changed to any value
-between 1 and 15 million.
+### VariegateRewards Administrator Functions
 
-`setRewardsTracker`
+`addToken(contact)`
 
-Allows owner to switch the rewards tracker contract.
+Adds a BEP20/ERC20 token to the rewards system. Once the token is added, it can be
+assigned to a daily slot for rewarding.
 
-* Rewards tracker can be locked for 3 months (TODO).
+`deleteSlot(slot)`
 
-`setRewardsWaitingPeriod`
+Removes the slot from the active token list and reduces the slot count.
 
-Allows owner to set the time between manual reward claims.
+`deleteToken(address)`
+
+Deletes the token and all tracking data from the rewards system.
+
+`setExcluded(address, setting)` _requires confirmation by 2nd admin_
+
+Sets the exclusion flag on an account. When true the account will be ignored by the
+rewards system.
+
+`setCurrentSlot(slot)`
+
+Forces a token slot to be the active slot. Used to align a slot with a day of the week.
+
+`setMinimumBalance(amount)` _requires confirmation by 2nd admin_
+
+Sets the minimum required balance to earn rewards.
+
+* The minimum required balance defaults to 500k tokens and can be changed to any value
+between 100k and 500k.
+
+`setSlot(slot, address)`
+
+Changes the token in the slot to the contract address passed. If slot=0 the number of
+slots is increased and the token is added to the new slot.
+
+* Token must have been previously added via `addToken`
+* Only 10 token slots may be defined.
+
+`setSlots([address, address, ...])`
+
+Replaces all token slots with the list provided.
+
+* Token must have been previously added via `addToken`
+* Only 10 token slots may be defined.
+
+`setStaking(setting)` _requires confirmation by 2nd admin_
+
+Enable/disable the last sell date staking option of the rewards system.
+
+`setWaitingPeriod(seconds)` _requires confirmation by 2nd admin_
+
+Sets the time between manual reward claims.
 
 * The waiting period between claims defaults to 6 hours and can be changed to any
 value between 1 and 24 hours.
 
-`setStaking`
+`trackBuy` and `trackSell` _token contract only_
 
-Allows owner to enable/disable the last sell date staking option of the rewards system.
+These two functions can only be called by the Variegate token and are uses to track
+when a holder buys or sells tokens.
+
+### VariegateProject Administrator Functions
+
+`replaceAdmin(from, to)` _requires confirmation by 2nd admin_
+
+Replaces administrator with `from` address with the `to` address.
+
+`requestFunds(address, amount)` _requires confirmation by 2nd admin_
+
+Sends the address an amount of BNB.
 
 ## Disclaimer
 
-This document attempts to accurately describe the functionality of the smart contract.
-If any discrepancies arise between this document and the contract code, the code stands
-as the canonical source of the truth.
+This document attempts to accurately describe the functionality of the smart contracts.
+When discrepancies arise between this document and the contract code, the code stands
+as the defacto truth.
 
 ***
-
-## Deploying Token on Remix
-### 1. Flatten VariegateProject.sol and compile
-
-Using Remix, flatten and save the VariegateProject.sol file. This will contain the
-sources of all 3 tokens - Variegate, VariegateRewards and VariegateProject. Be sure to
-set the IUniswapV2Router02 to the correct Pancakeswap address for the network.
-Use the following settings on Remix to compile:
-
-* compiler: `v0.8.11+commit.d7f03943`
-* optimize: `true`
-* runs: `200`
-* evmVersion: `spuriousDragon`
-
-### 2. Deploy VariegateProject token.
-
-From the deploy tab, select `VariegateProject - VariegateProject_flat.sol` from the
-contract droplist and click deploy. Approve the transactions on metamask and after
-a few seconds you should see the new contract under `Deployed Contracts`.
-
-### 3. Verify VariegateProject token on bscscan.
-
-Go to the contract on bscscan `https://testnet.bscscan.com/verifyContract?a=_project_address_`
-and verify the source. Enter the following settings:
-
-* compiler type: `solidity (single file)`
-* compiler version: `v0.8.11+commit.d7f03943`
-* open source license type: `mit`
-
-Agree to terms and continue to next page. Enter the following settings:
-
-* optimization: `yes`
-* solidity contract code: copy/paste entire `VariegateProject_flat.sol` into text area
-* misc settings / runs: `200`
-* misc settings / evmVersion: `spuriousDragon`
-
-Prove you are not a robot and click `Verify and Publish`
-
-### 4. Deploy Variegate token.
-
-From the deploy tab, select `Variegate - VariegateProject_flat.sol` from the contract
-droplist and click deploy. Approve the transactions on metamask and after
-a few seconds you should see the new contract under `Deployed Contracts`.
-
-### 5. Verify Variegate token on bscscan.
-
-Repeat step 3 but this time verifying the Variegate token using the same `VariegateProject_flat.sol`
-source file.
-
-### 6. Link Variegate and VariegateProject tokens.
-
-From either remix or bscscan contract tab, run the following commands on each contract:
-
-  * Variegate: `setProjectWallet(_project_address_)`
-  * VariegateProject: `setToken(_odyssey_address_)`
-
-### 7. Establish VariegateProject CEO/CFOs
-
-The project wallet requires 4 chief officers to operate. Run the following command
-with an array of addresses of the officers wallets to define the CEO and CFO accounts:
-
-* VariegateProject: `setOfficers([_ceo1_, _ceo2_, _cfo1_, _cfo2_])`
-
-This action can only be done once so double check. After this is set, changing officers
-will require going through the voting process using the addresses supplied.
-
-### 8. Establish VariegateProject Seed Investors
-
-The project wallet requires seed investors and amounts to pay back loans. Run the
-following command with two arrays of equal length to define the investor accounts
-and their seed dollar amounts.
-
-* VariegateProject: `setHolders([_holder1_, _holder2_, ...], [_amount1_, _amount2_, ...])`
-
-This action can only be done once ever so quadruple check the two arrays line up correctly.
-The amounts supplied should be dollar amounts with no decimals.
-
-### 9. Supply initial liquidity to Variegate token
-
-Send the contract BNB and tokens to be paired as initial liquidty in PanCakeSwap. The
-LP tokens generated will be sent to the owner after creation to be locked.
-
-From metamask, send initial liquidity BNB to the contract.
-
-From either remix or bscscan contract tab, run the following commands:
-
-  * Variegate: `transfer(to: _odyssey_address_, amount: _half_final_supply_)`
-
-### 10. Open contract to public
-
-Run the following command to open the contract to public trading.
-
-* Variegate: `openToPublic()`
-
-This action can only be done once ever and cannot be undone. Choose wisely.
-
-### 11. Verify VariegateRewards contract
-
-Repeat step 3 but this time verifying the VariegateRewards contract using the same `VariegateProject_flat.sol`
-source file. You will need to provide the constructor arguments `("VariegateRewards", "ODSYRV1")` in
-ABI-encoded format. The encoded data is provided below:
-
-* Constructor Arguments ABI-encoded: `00000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000e4f6479737365795265776172647300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000074f44535952563100000000000000000000000000000000000000000000000000`

@@ -10,7 +10,7 @@ contract VariegateProject is RewardsTracker {
 
   struct Holder {
     uint256 index;
-    uint256 share;
+    uint256 dollars;
   }
 
   uint256 public holders = 0;
@@ -25,8 +25,7 @@ contract VariegateProject is RewardsTracker {
   // mapping (uint256 => address) public officerAt;
   // mapping (address => Holder) public officer;
 
-  uint256 public dividends = 10;
-  uint256 public dividendsInBNB = 0;
+  uint256 public paybackBNB = 0;
   uint256 public funds = 0;
 
   uint256 public constant MIN_BALANCE = 250_000 ether; // TOKENS REQ FOR DIVIDENDS
@@ -50,7 +49,12 @@ contract VariegateProject is RewardsTracker {
    }
 
   modifier onlyAdmin() {
-    require(isAdmin(msg.sender), "Caller invalid");
+    require(isAdmin(_msgSender()), "Caller invalid");
+    _;
+  }
+
+  modifier onlyToken() { // CALL COMES FROM TOKEN IF SET
+    require(_msgSender()==token || token==address(0) && isAdmin(_msgSender()), "Caller invalid");
     _;
   }
 
@@ -59,49 +63,27 @@ contract VariegateProject is RewardsTracker {
     return (admins[0]==address(0) && account==owner()); // IF NO OFFICERS SET, CHECK OWNER
   }
 
-  function confirmCall(uint256 required, address account, bytes4 method, bytes calldata args) public returns (bool) {
+  function confirmCall(uint256 required, address account, bytes4 method, bytes calldata args) public onlyToken returns (bool) {
     require(isAdmin(account), "Caller invalid");
 
-    if (required==1) return true;
-
-    if (confirm[method].expires!=0 && (confirm[method].expires<block.timestamp || keccak256(confirm[method].args)!=keccak256(args))) { // EXISTING CALL EXPIRED OR ARGS NEQ
-      delete confirm[method];
-    }
-
-    bool found = false;
-    for (uint idx; idx<confirm[method].accounts.length; idx++) if (confirm[method].accounts[idx]==account) found = true; // CHECK RE-CONFIRMS
-
-    if (!found) confirm[method].accounts.push(account);
-
-    if (confirm[method].accounts.length==required) { // CONFIRMED
-      emit ConfirmationComplete(account, method, required);
-      delete confirm[method];
-      return true;
-    }
-
-    confirm[method].count = confirm[method].accounts.length;
-    confirm[method].args = args;
-    confirm[method].expires = block.timestamp + 60 * 15;
-    emit ConfirmationRequired(account, method, confirm[method].count, required);
-
-    return false;
+    return confirmed(required, account, method, args);
   }
 
-  function getReport() public view returns (uint256 holderCount, uint256 totalDollars, uint256 totalDividends) {
+  function getReport() public view returns (uint256 holderCount, uint256 totalDollars, uint256 totalBNB) {
     holderCount = holders;
     totalDollars = totalBalance;
-    totalDividends = totalDistributed;
+    totalBNB = totalDistributed;
   }
 
-  function getReportAccount(address key) public view returns (address account, uint256 index, uint256 shares, uint256 dividendsEarned, uint256 dividendsClaimed) {
+  function getReportAccount(address key) public view returns (address account, uint256 index, uint256 dollars, uint256 depositedBNB, uint256 withdrawnBNB) {
     account = key;
     index = holder[account].index;
-    shares = balanceOf[account];
-    dividendsEarned = getAccumulated(account);
-    dividendsClaimed = withdrawnRewards[account];
+    dollars = balanceOf[account];
+    depositedBNB = getAccumulated(account);
+    withdrawnBNB = withdrawnRewards[account];
   }
 
-  function getReportAccountAt(uint256 indexOf) public view returns (address account, uint256 index, uint256 shares, uint256 dividendsEarned, uint256 dividendsClaimed) {
+  function getReportAccountAt(uint256 indexOf) public view returns (address account, uint256 index, uint256 dollars, uint256 depositedBNB, uint256 withdrawnBNB) {
     require(indexOf > 0 && indexOf <= holders, "Value invalid");
 
     return getReportAccount(holderAt[indexOf]);
@@ -143,7 +125,7 @@ contract VariegateProject is RewardsTracker {
 
     for (uint256 idx=0;idx<accounts.length;idx++) setHolder(accounts[idx], dollars[idx]);
 
-    dividendsInBNB = (totalBalance * 1 ether).div(333); // FOR EACH $1K RETURN 3 BNB - ADJUST BNB PRICE AT LAUNCH
+    paybackBNB = (totalBalance * 1 ether).div(333); // FOR EACH $1K RETURN 3 BNB - ADJUST BNB PRICE AT LAUNCH
   }
 
   function setToken(address key) external onlyAdmin {
@@ -163,32 +145,58 @@ contract VariegateProject is RewardsTracker {
 
   // PRIVATE
 
+  function confirmed(uint256 required, address account, bytes4 method, bytes calldata args) internal returns (bool) {
+    if (required==1) return true;
+
+    if (confirm[method].expires!=0 && (confirm[method].expires<block.timestamp || keccak256(confirm[method].args)!=keccak256(args))) { // EXISTING CALL EXPIRED OR ARGS NEQ
+      delete confirm[method];
+    }
+
+    bool found = false;
+    for (uint idx; idx<confirm[method].accounts.length; idx++) if (confirm[method].accounts[idx]==account) found = true; // CHECK RE-CONFIRMS
+
+    if (!found) confirm[method].accounts.push(account);
+
+    if (confirm[method].accounts.length==required) { // CONFIRMED
+      emit ConfirmationComplete(account, method, required);
+      delete confirm[method];
+      return true;
+    }
+
+    confirm[method].count = confirm[method].accounts.length;
+    confirm[method].args = args;
+    confirm[method].expires = block.timestamp + 60 * 15;
+    emit ConfirmationRequired(account, method, confirm[method].count, required);
+
+    return false;
+  }
+
   function distributeFunds(uint256 amount) internal override {
-    if (totalDistributed >= dividendsInBNB) { // PAID IN FULL, NO MORE DISTRIBUTIONS
+    if (totalDistributed >= paybackBNB) { // PAID IN FULL, NO MORE DISTRIBUTIONS
       funds += amount;
       return;
     }
-    uint256 share = amount.mul(dividends).div(100);
-    funds += amount.sub(share);
-    super.distributeFunds(share);
+    uint256 split = amount.div(10); // 20% of Fees go to pay start up costs
+    funds += amount.sub(split);
+    super.distributeFunds(split);
   }
 
   function isConfirmed(uint256 required) private returns (bool) {
-    return required < 2 || confirmCall(required, msg.sender, msg.sig, msg.data);
+    return required < 2 || confirmed(required, msg.sender, msg.sig, msg.data);
   }
 
   function isContract(address key) private view returns (bool) {
     return key.code.length > 0;
   }
 
-  function setHolder(address account, uint256 share) internal {
-    putBalance(account, share);
+  function setHolder(address account, uint256 dollars) internal {
+    putBalance(account, dollars);
     if (holder[account].index==0) {
       holders++;
       holderAt[holders] = account;
       holder[account].index = holders;
     }
-    holder[account].share = share;
+    holder[account].dollars = dollars;
   }
 
   function verifyMinimumBalances() internal {
@@ -201,7 +209,7 @@ contract VariegateProject is RewardsTracker {
       if (balanceOf[account] > 0 && balance < MIN_BALANCE) {
         putBalance(account, 0);
       } else if (balanceOf[account]==0 && balance >= MIN_BALANCE) {
-        putBalance(account, holder[account].share); // RESTORE ORIGINAL SHARE
+        putBalance(account, holder[account].dollars); // RESTORE ORIGINAL SHARE
       }
     }
   }

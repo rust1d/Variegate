@@ -36,7 +36,7 @@ contract('VariegateProject', function (accounts) {
 
     assert.equal(report.holderCount, shareholders.length);
     assert.equal(report.totalDollars, totalDollars);
-    assert.equal(fromWei(await contract.dividendsInBNB()), (totalDollars/333).toFixed(2));
+    assert.equal(fromWei(await contract.paybackBNB()), (totalDollars/333).toFixed(2));
     for (let idx=0;idx<9;idx++) {
       assert.equal((await contract.balanceOf(accounts[idx])).toNumber(), dollars[idx]);
     }
@@ -63,9 +63,9 @@ contract('VariegateProject', function (accounts) {
     expectEvent(transaction, 'FundsWithdrawn', { account: holder1, amount: toWei(2) });
 
     report = await contract.getReportAccount(holder1);
-    assert.equal(report.shares, '2000');
-    assert.equal(report.dividendsEarned, toWei(2));
-    assert.equal(report.dividendsClaimed, toWei(2));
+    assert.equal(report.dollars, '2000');
+    assert.equal(report.depositedBNB, toWei(2));
+    assert.equal(report.withdrawnBNB, toWei(2));
   });
 
   it('only distributes funds when token set and min balance met', async function () {
@@ -77,36 +77,36 @@ contract('VariegateProject', function (accounts) {
     await contract.send(toWei(100), { from: holder9 });
 
     report = await contract.getReportAccount(holder1);
-    assert.notEqual(report.shares, '0'); // TRACKED
-    assert.notEqual(report.dividendsEarned, '0');
+    assert.notEqual(report.dollars, '0'); // TRACKED
+    assert.notEqual(report.depositedBNB, '0');
 
     report = await contract.getReportAccount(holder2);
-    assert.equal(report.shares, '0'); // NOT TRACKED
-    assert.equal(report.dividendsEarned, '0');
+    assert.equal(report.dollars, '0'); // NOT TRACKED
+    assert.equal(report.depositedBNB, '0');
 
     await token.transfer(holder2, toWei(MIN_BALANCE), { from: owner });
     await contract.withdrawFunds(holder2); // UPDATES BALANCES
     await contract.send(toWei(10), { from: holder9 });
 
     report = await contract.getReportAccount(holder2);
-    assert.notEqual(report.shares, '0'); // TRACKED
-    assert.notEqual(report.dividendsEarned, '0');
+    assert.notEqual(report.dollars, '0'); // TRACKED
+    assert.notEqual(report.depositedBNB, '0');
   });
 
   it('stops distributing funds after paid back', async function () {
-    let complete = (await contract.dividendsInBNB()).toString() + '0'; // 10x since tax is 10%
+    let complete = (await contract.paybackBNB()).toString() + '0'; // 10x since tax is 10%
     await contract.send(complete, { from: holder9 }); // SEND ENOUGH TO COVER COSTS
     report = await contract.getReport();
-    assert.equal(fromWei(report.totalDividends), '30.03');
+    assert.equal(fromWei(report.totalBNB), '30.03');
     report = await contract.getReportAccount(holder1);
-    assert.equal(fromWei(report.dividendsEarned), '6.01'); // holder1 paid 2k so should get back about 6 BNB
+    assert.equal(fromWei(report.depositedBNB), '6.01'); // holder1 paid 2k so should get back about 6 BNB
 
     // SENDING IN MORE BNB SHOULD NO LONGER AFFECT DIVIDENDS
     await contract.send(toWei(10), { from: holder9 });
     report = await contract.getReport();
-    assert.equal(fromWei(report.totalDividends), '30.03');
+    assert.equal(fromWei(report.totalBNB), '30.03');
     report = await contract.getReportAccount(holder1);
-    assert.equal(fromWei(report.dividendsEarned), '6.01');
+    assert.equal(fromWei(report.depositedBNB), '6.01');
   });
 
   it('processes all shareholder', async function () {
@@ -115,20 +115,20 @@ contract('VariegateProject', function (accounts) {
       await token.transfer(shareholders[idx], toWei(MIN_BALANCE), { from: owner });
     }
 
-    let complete = (await contract.dividendsInBNB()).toString() + '0';
+    let complete = (await contract.paybackBNB()).toString() + '0';
     await contract.send(complete, { from: holder9 }); // SEND ENOUGH TO COVER COSTS
     report = await contract.getReport();
-    assert.equal(fromWei(report.totalDividends), '30.03');
+    assert.equal(fromWei(report.totalBNB), '30.03');
     report = await contract.getReportAccount(holder1);
-    assert.equal(fromWei(report.dividendsEarned), '6.01'); // holder1 paid 2k so should get back about 6 BNB
+    assert.equal(fromWei(report.depositedBNB), '6.01'); // holder1 paid 2k so should get back about 6 BNB
 
     let cnt = await contract.holders();
     let sum = 0;
     for (let idx=1;idx<=cnt;idx++) {
       await contract.withdrawFunds(await contract.holderAt(idx));
       report = await contract.getReportAccountAt(idx);
-      assert.equal(fromWei(report.dividendsClaimed), (30.03 / (totalDollars / dollars[idx-1])).toFixed(2));
-      sum += fromWei(report.dividendsClaimed) * 1;
+      assert.equal(fromWei(report.withdrawnBNB), (30.03 / (totalDollars / dollars[idx-1])).toFixed(2));
+      sum += fromWei(report.withdrawnBNB) * 1;
     }
     assert.equal(sum, 30.03);
   });

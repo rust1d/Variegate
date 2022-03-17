@@ -223,7 +223,7 @@ contract VariegateRewards is RewardsTracker {
     minimumBalance = newBalance;
   }
 
-  function setSlot(uint256 slot, address key) external onlyAdmin {
+  function setSlot(uint256 slot, address key) public onlyAdmin {
     require(slot>=0 && slot <= slots, "Value invalid");
     require(slot>0 || slots < MAX_SLOTS, "All slots filled");
     require(token[key].added>0, "Token not found");
@@ -240,8 +240,9 @@ contract VariegateRewards is RewardsTracker {
     require(keys.length > 0 && keys.length < MAX_SLOTS, "Too many values");
     for (uint256 idx=0; idx<keys.length; idx++) require(token[keys[idx]].added>0, "Token not found");
 
-    for (uint256 idx=0; idx<keys.length; idx++) tokenInSlot[idx+1] = keys[idx];
-    for (uint256 idx=keys.length; idx<slots; idx++) delete tokenInSlot[idx+1];
+    for (uint256 idx=1; idx<=slots; idx++) delete tokenInSlot[idx];
+    slots = 0;
+    for (uint256 idx=0; idx<keys.length; idx++) setSlot(0, keys[idx]);
   }
 
   function setStaking(bool setting) external onlyAdmin {

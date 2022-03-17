@@ -46,11 +46,11 @@ contract('VariegateProject', function (accounts) {
   it('tracks calls via confirmCall', async function () {
     await contract.setAdmins(admins);
 
-    transaction = await contract.confirmCall(3, admin1, '0x10101010', '0x0');
+    transaction = await contract.confirmCall(3, admin1, '0x10101010', '0x0', { from: admin1 });
     expectEvent(transaction, 'ConfirmationRequired', { confirmations: '1', required: '3' });
-    transaction = await contract.confirmCall(3, admin2, '0x10101010', '0x0');
+    transaction = await contract.confirmCall(3, admin2, '0x10101010', '0x0', { from: admin2 });
     expectEvent(transaction, 'ConfirmationRequired', { confirmations: '2', required: '3' });
-    transaction = await contract.confirmCall(3, admin3, '0x10101010', '0x0');
+    transaction = await contract.confirmCall(3, admin3, '0x10101010', '0x0', { from: admin3 });
     expectEvent(transaction, 'ConfirmationComplete', { confirmations: '3' });
 
   });
@@ -58,20 +58,20 @@ contract('VariegateProject', function (accounts) {
   it('restarts confirmation when conflicted', async function () {
     await contract.setAdmins(admins);
 
-    transaction = await contract.confirmCall(3, admin1, '0x10101010', '0x0');
+    transaction = await contract.confirmCall(3, admin1, '0x10101010', '0x0', { from: admin1 });
     expectEvent(transaction, 'ConfirmationRequired', { confirmations: '1', required: '3' });
-    transaction = await contract.confirmCall(3, admin2, '0x10101010', '0x0');
+    transaction = await contract.confirmCall(3, admin2, '0x10101010', '0x0', { from: admin2 });
     expectEvent(transaction, 'ConfirmationRequired', { confirmations: '2', required: '3' });
-    transaction = await contract.confirmCall(3, admin3, '0x10101010', '0x10');
+    transaction = await contract.confirmCall(3, admin3, '0x10101010', '0x10', { from: admin3 });
     expectEvent(transaction, 'ConfirmationRequired', { confirmations: '1', required: '3' });
   });
 
   it('ignores double confirmation', async function () {
     await contract.setAdmins(admins);
 
-    transaction = await contract.confirmCall(2, admin1, '0x10101010', '0x0');
+    transaction = await contract.confirmCall(2, admin1, '0x10101010', '0x0', { from: admin1 });
     expectEvent(transaction, 'ConfirmationRequired', { confirmations: '1', required: '2' });
-    transaction = await contract.confirmCall(2, admin1, '0x10101010', '0x0');
+    transaction = await contract.confirmCall(2, admin1, '0x10101010', '0x0', { from: admin1 });
     expectEvent(transaction, 'ConfirmationRequired', { confirmations: '1', required: '2' });
   });
 
