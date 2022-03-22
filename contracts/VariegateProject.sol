@@ -8,27 +8,20 @@ contract VariegateProject is RewardsTracker {
   using SafeMath for uint256;
   using SafeMathInt for int256;
 
+  uint256 public constant MIN_BALANCE = 250_000 ether; // TOKENS REQ FOR DIVIDENDS
+  uint256 public paybackBNB = 0;
+  uint256 public funds = 0;
+  address[3] public admins;
+  address payable public token;
+
   struct Holder {
     uint256 index;
     uint256 dollars;
   }
 
-  uint256 public holders = 0;
-  mapping (uint256 => address) public holderAt;
   mapping (address => Holder) public holder;
-
-  address[3] public admins;
-
-  address payable public token;
-
-  // uint256 public admins = 0;
-  // mapping (uint256 => address) public officerAt;
-  // mapping (address => Holder) public officer;
-
-  uint256 public paybackBNB = 0;
-  uint256 public funds = 0;
-
-  uint256 public constant MIN_BALANCE = 250_000 ether; // TOKENS REQ FOR DIVIDENDS
+  mapping (uint256 => address) public holderAt;
+  uint256 public holders = 0;
 
   struct Confirm {
     uint256 expires;
@@ -45,15 +38,14 @@ contract VariegateProject is RewardsTracker {
   event ConfirmationComplete(address account, bytes4 method, uint256 confirmations);
   event TokenSet(address to);
 
-  constructor() RewardsTracker() {
-   }
+  constructor() RewardsTracker() { }
 
   modifier onlyAdmin() {
     require(isAdmin(_msgSender()), "Caller invalid");
     _;
   }
 
-  modifier onlyToken() { // CALL COMES FROM TOKEN IF SET
+  modifier onlyToken() { // CALL COMES FROM TOKEN IF SET, OTHERWISE ADMIN
     require(_msgSender()==token || token==address(0) && isAdmin(_msgSender()), "Caller invalid");
     _;
   }

@@ -3,7 +3,7 @@
 Variegate token features a unique system of rewards and micro-staking to encourage
 holding for extended periods. All accounts holding at least 500k tokens are eligible
 to automatically earn rewards that increase over time based on their last sell. Rewards
-are paid out to holder in a different BEP20/BSC token each day. The rewards tokens
+are paid out to holder in a different BEP20/BSC token by day. The rewards tokens
 paid to holder will be voted on by the Variegate community and changed on a
 regular basis.
 
@@ -49,6 +49,14 @@ transactions will process less claims so manually claiming rewards is an option.
 
 Holders can use the `withdrawFunds` function to manually claim pending
 rewards once per waiting period.
+
+### Daily Rewards Token
+
+The rewards contract is set up to allow rotating between up to 10 different tokens. The
+current token can change each day depending upon how the admins set up the available slots.
+Typically this will be setup with 7 slots, corresponding to the days of the week, and each
+week day will have a different token assigned with the community favorite assigned to the
+Friday, Saturday and Sunday slots.
 
 ### Rewards Reporting
 
