@@ -13,6 +13,7 @@ contract VariegateProject is RewardsTracker {
   uint256 public funds = 0;
   address[3] public admins;
   address payable public token;
+  address payable public rewards;
 
   struct Holder {
     uint256 index;
@@ -56,8 +57,6 @@ contract VariegateProject is RewardsTracker {
   }
 
   function confirmCall(uint256 required, address account, bytes4 method, bytes calldata args) public onlyToken returns (bool) {
-    require(isAdmin(account), "Caller invalid");
-
     return confirmed(required, account, method, args);
   }
 

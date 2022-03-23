@@ -27,6 +27,7 @@ const one_hour = 60 * 60;
 const six_hours = 6 * one_hour;
 const two_hours = 2 * one_hour;
 const one_day = 24 * one_hour;
+let minBalance;
 
 function toWei(count) {
   return `${count}000000000000000000`;
@@ -34,15 +35,6 @@ function toWei(count) {
 
 function fromWei(bn) {
   return (bn / toWei(1)).toFixed(2);
-}
-
-function findEvent(transaction, event) {
-  for (const log of transaction.logs) if (log.event==event) return log;
-  return {};
-}
-
-function eventArgs(transaction, name) {
-  return findEvent(transaction, name).args;
 }
 
 function timeTravel(addSeconds) {
@@ -74,11 +66,7 @@ contract('VariegateRewards', function (accounts) {
 
   beforeEach('setup contract for each test', async function() {
     contract = await VariegateRewards.new();
-  });
-
-  it('has a name and symbol', async function () {
-    assert.equal(await contract.name(), 'TestRewards');
-    assert.equal(await contract.symbol(), 'TST$');
+    minBalance = (await contract.minimumBalance()).toString();
   });
 
   it('adds tokens', async function () {
@@ -153,8 +141,8 @@ contract('VariegateRewards', function (accounts) {
   });
 
   it('gives rewards in active token', async function () {
-    await contract.setMinimumBalance(1, { from: owner });
-    await contract.trackBuy(holder1, toWei(10), { from: owner });
+    // await contract.setMinimumBalance(1, { from: owner });
+    await contract.trackBuy(holder1, toWei(500_000), { from: owner });
 
     await contract.addToken(coins.doge.address, { from: owner });
     await contract.setSlot(0, coins.doge.address);
@@ -180,10 +168,10 @@ contract('VariegateRewards', function (accounts) {
   });
 
   it('test 7 slots', async function () {
-    await contract.setMinimumBalance(1, { from: owner });
-    await contract.trackBuy(holder1, toWei(10), { from: owner });
-    await contract.trackBuy(holder2, toWei(20), { from: owner });
-    await contract.trackBuy(holder3, toWei(30), { from: owner });
+    // await contract.setMinimumBalance(1, { from: owner });
+    await contract.trackBuy(holder1, toWei(1 * 500_000), { from: owner });
+    await contract.trackBuy(holder2, toWei(2 * 500_000), { from: owner });
+    await contract.trackBuy(holder3, toWei(3 * 500_000), { from: owner });
 
     let slot = 0;
     for (const key in coins) {

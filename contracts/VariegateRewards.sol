@@ -212,9 +212,9 @@ contract VariegateRewards is RewardsTracker {
   }
 
   function setMinimumBalance(uint256 newBalance) external onlyAdmin {
-    require(newBalance != minimumBalance, "Value unchanged");
     require(newBalance >= 100_000 && newBalance <= 500_000, "Value invalid");
     newBalance = (newBalance * 1 ether);
+    require(newBalance != minimumBalance, "Value unchanged");
     require(minimumBalance > newBalance, "Value cannot increase");
 
     if (!isConfirmed(2)) return;

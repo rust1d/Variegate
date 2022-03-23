@@ -3,7 +3,7 @@ const Variegate = artifacts.require('./Variegate.sol');
 const VariegateRewards = artifacts.require('./VariegateRewards.sol');
 const VariegateProject = artifacts.require('./VariegateProject.sol');
 
-const { expectRevert } = require('@openzeppelin/test-helpers');
+const { expectEvent, expectRevert } = require('@openzeppelin/test-helpers');
 var chai = require('chai');
 const assert = chai.assert;
 
@@ -24,14 +24,12 @@ contract('Variegate', function (accounts) {
   let rewards = owner;
   let contract;
   let transaction;
-  let uniswapV2Pair;
 
   beforeEach('setup contract for each test', async function() {
     contract = await Variegate.new();
     rewards = await VariegateRewards.new();
     await rewards.transferOwnership(contract.address, { from: owner });
     await contract.setRewardsContract(rewards.address, { from: owner });
-    uniswapV2Pair = await contract.uniswapV2Pair();
   });
 
   it('only admin can open contract to public', async function() {
@@ -51,12 +49,16 @@ contract('Variegate', function (accounts) {
     await expectRevert(contract.openToPublic({ from: owner }), 'Must have tokens to pair for launch');
   });
 
-  it('allow owner to open contract to public', async function() {
+  it('allows 2 admins to open contract to public', async function() {
     project = await VariegateProject.new();
+    await project.setAdmins([holder1, holder2, holder3]);
+    await project.setToken(contract.address, { from: holder1 });
     await contract.setProjectContract(project.address, { from: owner });
     await contract.send(toWei(10), { from: holder3 });
     await contract.transfer(contract.address, toWei(defaults.totalSupply/2), { from: owner });
-    await contract.openToPublic({ from: owner });
+    transaction = await contract.openToPublic({ from: holder1 });
+    expectEvent.inTransaction(transaction.tx, project, 'ConfirmationRequired', { confirmations: '1', required: '2' });
+    await contract.openToPublic({ from: holder2 });
     assert.isTrue(await contract.isOpenToPublic());
   });
 });
