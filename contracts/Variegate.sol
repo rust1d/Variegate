@@ -16,8 +16,6 @@ contract Variegate is ERC20, Ownable {
   IUniswapV2Router02 public immutable uniswapV2Router;
   address public immutable uniswapV2Pair;
 
-  // address public variRewards;
-  // address public variProject;
   VariegateRewards public rewards;
   VariegateProject public project;
 

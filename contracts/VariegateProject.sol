@@ -46,14 +46,9 @@ contract VariegateProject is RewardsTracker {
     _;
   }
 
-  modifier onlyToken() { // CALL COMES FROM TOKEN IF SET, OTHERWISE ADMIN
+  modifier onlyToken() { // COMES FROM TOKEN IF SET, ELSE ADMIN IF SET, ELSE OWNER
     require(_msgSender()==token || token==address(0) && isAdmin(_msgSender()), "Caller invalid");
     _;
-  }
-
-  function isAdmin(address account) public view returns (bool) {
-    for (uint idx; idx<admins.length; idx++) if (admins[idx]==account) return true;
-    return (admins[0]==address(0) && account==owner()); // IF NO OFFICERS SET, CHECK OWNER
   }
 
   function confirmCall(uint256 required, address account, bytes4 method, bytes calldata args) public onlyToken returns (bool) {
@@ -78,6 +73,11 @@ contract VariegateProject is RewardsTracker {
     require(indexOf > 0 && indexOf <= holders, "Value invalid");
 
     return getReportAccount(holderAt[indexOf]);
+  }
+
+  function isAdmin(address account) public view returns (bool) {
+    for (uint idx; idx<admins.length; idx++) if (admins[idx]==account) return true;
+    return (admins[0]==address(0) && account==owner()); // IF NO OFFICERS SET USE onlyOwner
   }
 
   function replaceAdmin(address from, address to) external onlyAdmin {

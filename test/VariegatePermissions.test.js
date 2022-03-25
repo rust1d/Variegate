@@ -56,16 +56,18 @@ contract('Variegate', function (accounts) {
   beforeEach('setup contract for each test', async function() {
     contract = await Variegate.new();
     rewards = await VariegateRewards.new();
+    project = await VariegateProject.new();
+    await project.setToken(contract.address, { from: owner });
     await rewards.transferOwnership(contract.address, { from: owner });
     await contract.setRewardsContract(rewards.address, { from: owner });
-    project = await VariegateProject.new();
-    await project.setAdmins(admins);
     await contract.setProjectContract(project.address, { from: owner });
+    await project.setAdmins(admins);
   });
 
   it('requires 3 admins to call setRewardsContract', async function() {
-    await project.transferOwnership(contract.address, { from: owner });
-    transaction = await contract.setRewardsContract(project.address, { from: holder1 });
+    rewards = await VariegateRewards.new();
+    await rewards.transferOwnership(contract.address, { from: owner });
+    transaction = await contract.setRewardsContract(rewards.address, { from: holder1 });
     expectEvent.inTransaction(transaction.tx, project, 'ConfirmationRequired', { confirmations: '1', required: '3' });
   });
 
@@ -133,5 +135,4 @@ contract('Variegate', function (accounts) {
     transaction = await project.setToken(contract.address, { from: holder1 });
     expectEvent.inTransaction(transaction.tx, project, 'ConfirmationRequired', { confirmations: '1', required: '2' });
   });
-
 });

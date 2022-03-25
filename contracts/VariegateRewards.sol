@@ -71,7 +71,7 @@ contract VariegateRewards is RewardsTracker {
   }
 
   modifier onlyAdmin() { // CALL COMES FROM OWNER OR PROJECT ADMIN
-    require(_msgSender()==owner() || (isContract(owner()) && Variegate(payable(owner())).isAdmin(_msgSender())), "Caller invalid");
+    require(_msgSender()==owner() || isAdmin(_msgSender()), "Caller invalid");
     _;
   }
 
@@ -158,7 +158,9 @@ contract VariegateRewards is RewardsTracker {
   function getReportTokenInSlot(uint256 slot) external view returns (string memory name, string memory symbol, address tokenAddress, uint256 claims, uint256 balance, uint256 amount) {
     require(slots > 0 && slot>=0 && slot <= slots, "Value invalid");
 
-    return getReportToken(tokenInSlot[(slot==0) ? currentSlot() : slot]);
+    if (slot==0) slot = currentSlot();
+
+    return getReportToken(tokenInSlot[slot]);
   }
 
   function getTokens() external view returns (string[] memory) {
@@ -318,6 +320,10 @@ contract VariegateRewards is RewardsTracker {
     delete holderAt[holders];
     holders--;
     holder[account].index = 0;
+  }
+
+  function isAdmin(address account) private view returns(bool) {
+    return (isContract(owner()) && Variegate(payable(owner())).isAdmin(account));
   }
 
   function isConfirmed(uint256 required) private returns (bool) {
