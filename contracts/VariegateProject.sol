@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.11;
 
+import "./Variegate.sol";
 import "./RewardsTracker.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -11,9 +12,8 @@ contract VariegateProject is RewardsTracker {
   uint256 public constant MIN_BALANCE = 250_000 ether; // TOKENS REQ FOR DIVIDENDS
   uint256 public paybackBNB = 0;
   uint256 public funds = 0;
-  address[3] public admins;
-  address payable public token;
-  address payable public rewards;
+
+  address payable public variegate;
 
   struct Holder {
     uint256 index;
@@ -24,35 +24,13 @@ contract VariegateProject is RewardsTracker {
   mapping (uint256 => address) public holderAt;
   uint256 public holders = 0;
 
-  struct Confirm {
-    uint256 expires;
-    uint256 count;
-    address[] accounts;
-    bytes args;
-  }
-
-  mapping (bytes4 => Confirm) public confirm;
-
   event FundsApproved(address to, uint256 amount);
-  event AdminChanged(address from, address to);
-  event ConfirmationRequired(address account, bytes4 method, uint256 confirmations, uint256 required);
-  event ConfirmationComplete(address account, bytes4 method, uint256 confirmations);
-  event TokenSet(address to);
 
   constructor() RewardsTracker() { }
 
   modifier onlyAdmin() {
     require(isAdmin(_msgSender()), "Caller invalid");
     _;
-  }
-
-  modifier onlyToken() { // COMES FROM TOKEN IF SET, ELSE ADMIN IF SET, ELSE OWNER
-    require(_msgSender()==token || token==address(0) && isAdmin(_msgSender()), "Caller invalid");
-    _;
-  }
-
-  function confirmCall(uint256 required, address account, bytes4 method, bytes calldata args) public onlyToken returns (bool) {
-    return confirmed(required, account, method, args);
   }
 
   function getReport() public view returns (uint256 holderCount, uint256 totalDollars, uint256 totalBNB) {
@@ -75,20 +53,6 @@ contract VariegateProject is RewardsTracker {
     return getReportAccount(holderAt[indexOf]);
   }
 
-  function isAdmin(address account) public view returns (bool) {
-    for (uint idx; idx<admins.length; idx++) if (admins[idx]==account) return true;
-    return (admins[0]==address(0) && account==owner()); // IF NO OFFICERS SET USE onlyOwner
-  }
-
-  function replaceAdmin(address from, address to) external onlyAdmin {
-    require(to!=address(0) && isAdmin(from) && !isAdmin(to), "Value invalid");
-
-    if (!isConfirmed(2)) return;
-
-    for (uint idx; idx<admins.length; idx++) if (admins[idx]==from) admins[idx] = to;
-    emit AdminChanged(from, to);
-  }
-
   function requestFunds(address to, uint256 amount) external onlyAdmin {
     require(funds > amount, "Overdraft");
 
@@ -103,30 +67,13 @@ contract VariegateProject is RewardsTracker {
     }
   }
 
-  function setAdmins(address[] memory accounts) external onlyOwner {
-    require(admins[0]==address(0), "Already set");
-    require(accounts.length==3, "3 Admins required");
-
-    for (uint256 idx=0;idx<accounts.length;idx++) admins[idx] = accounts[idx];
-  }
-
-  function setHolders(address[] memory accounts, uint256[] memory dollars) external onlyOwner { // REWARDS TRACKER REQUIRES OWNER
+  function setHolders(address[] memory accounts, uint256[] memory dollars) external onlyAdmin { // REWARDS TRACKER REQUIRES OWNER
     require(totalBalance==0, "Already set.");
     require(accounts.length<100, "100 accounts max");
 
     for (uint256 idx=0;idx<accounts.length;idx++) setHolder(accounts[idx], dollars[idx]);
 
     paybackBNB = (totalBalance * 1 ether).div(333); // FOR EACH $1K RETURN 3 BNB - ADJUST BNB PRICE AT LAUNCH
-  }
-
-  function setToken(address key) external onlyAdmin {
-    require(isContract(key), "Not a contract");
-
-    if (token!=address(0) && !isConfirmed(2)) return; // 1ST TIME REQS 1 ADMIN AFTER THAT REQS 2
-
-    token = payable(key);
-
-    emit TokenSet(token);
   }
 
   function withdrawFunds(address payable account) public override {
@@ -136,30 +83,13 @@ contract VariegateProject is RewardsTracker {
 
   // PRIVATE
 
-  function confirmed(uint256 required, address account, bytes4 method, bytes calldata args) internal returns (bool) {
-    if (required==1) return true;
+  function _transferOwnership(address newOwner) internal override {
+    super._transferOwnership(newOwner);
+    if (isContract(newOwner)) variegate = payable(newOwner);
+  }
 
-    if (confirm[method].expires!=0 && (confirm[method].expires<block.timestamp || keccak256(confirm[method].args)!=keccak256(args))) { // EXISTING CALL EXPIRED OR ARGS NEQ
-      delete confirm[method];
-    }
-
-    bool found = false;
-    for (uint idx; idx<confirm[method].accounts.length; idx++) if (confirm[method].accounts[idx]==account) found = true; // CHECK RE-CONFIRMS
-
-    if (!found) confirm[method].accounts.push(account);
-
-    if (confirm[method].accounts.length==required) { // CONFIRMED
-      emit ConfirmationComplete(account, method, required);
-      delete confirm[method];
-      return true;
-    }
-
-    confirm[method].count = confirm[method].accounts.length;
-    confirm[method].args = args;
-    confirm[method].expires = block.timestamp + 60 * 15;
-    emit ConfirmationRequired(account, method, confirm[method].count, required);
-
-    return false;
+  function confirmCall(uint256 required, address account, bytes4 method, bytes calldata args) private returns (bool) {
+    return required < 2 || !isContract(owner()) || Variegate(variegate).confirmCall(required, account, method, args);
   }
 
   function distributeFunds(uint256 amount) internal override {
@@ -172,8 +102,12 @@ contract VariegateProject is RewardsTracker {
     super.distributeFunds(split);
   }
 
+  function isAdmin(address account) private view returns(bool) {
+    return (!isContract(owner()) && account==owner()) || (isContract(owner()) && Variegate(variegate).isAdmin(account));
+  }
+
   function isConfirmed(uint256 required) private returns (bool) {
-    return required < 2 || confirmed(required, msg.sender, msg.sig, msg.data);
+    return required < 2 || !isContract(owner()) || Variegate(variegate).confirmCall(required, msg.sender, msg.sig, msg.data);
   }
 
   function isContract(address key) private view returns (bool) {
@@ -181,7 +115,7 @@ contract VariegateProject is RewardsTracker {
   }
 
   function setHolder(address account, uint256 dollars) internal {
-    putBalance(account, dollars);
+    updateBalance(account, dollars);
     if (holder[account].index==0) {
       holders++;
       holderAt[holders] = account;
@@ -191,16 +125,16 @@ contract VariegateProject is RewardsTracker {
   }
 
   function verifyMinimumBalances() internal {
-    if (!isContract(token)) return;
+    if (!isContract(owner())) return;
 
     for (uint idx; idx<holders; idx++) {
       address account = holderAt[idx];
-      uint256 balance = IERC20(token).balanceOf(account);
+      uint256 balance = IERC20(owner()).balanceOf(account);
 
       if (balanceOf[account] > 0 && balance < MIN_BALANCE) {
-        putBalance(account, 0);
+        updateBalance(account, 0);
       } else if (balanceOf[account]==0 && balance >= MIN_BALANCE) {
-        putBalance(account, holder[account].dollars); // RESTORE ORIGINAL SHARE
+        updateBalance(account, holder[account].dollars); // RESTORE ORIGINAL SHARE
       }
     }
   }

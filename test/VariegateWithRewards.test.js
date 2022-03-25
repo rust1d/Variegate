@@ -39,28 +39,38 @@ contract('Variegate', function (accounts) {
 
   it('contract must have project and rewards contracts to open', async function() {
     await expectRevert(contract.openToPublic({ from: owner }), 'Configuration required');
+    project = await VariegateProject.new();
+    await project.transferOwnership(contract.address, { from: owner });
+    await contract.setProjectContract(project.address, { from: owner });
+    await expectRevert(contract.openToPublic({ from: owner }), 'Configuration required');
+    await contract.setAdmins([holder1, holder2, holder3]);
+    await expectRevert(contract.openToPublic({ from: holder1 }), 'Must have bnb to pair for launch');
   });
 
   it('contract must have bnb and tokens for initial liquidity', async function() {
     project = await VariegateProject.new();
+    await project.transferOwnership(contract.address, { from: owner });
     await contract.setProjectContract(project.address, { from: owner });
-    await expectRevert(contract.openToPublic({ from: owner }), 'Must have bnb to pair for launch');
+    await contract.setAdmins([holder1, holder2, holder3]);
+    await expectRevert(contract.openToPublic({ from: holder1 }), 'Must have bnb to pair for launch');
     await contract.send(toWei(10), { from: holder3 });
-    await expectRevert(contract.openToPublic({ from: owner }), 'Must have tokens to pair for launch');
+    await expectRevert(contract.openToPublic({ from: holder1 }), 'Must have tokens to pair for launch');
+    await contract.transfer(contract.address, toWei(defaults.totalSupply/2), { from: owner });
+    transaction = await contract.openToPublic({ from: holder1 });
+    expectEvent(transaction, 'ConfirmationRequired', { confirmations: '1', required: '2' });
   });
 
   it('allows 2 admins to open contract to public', async function() {
     project = await VariegateProject.new();
-    await project.setAdmins([holder1, holder2, holder3]);
-    await project.setToken(contract.address, { from: holder1 });
+    await project.transferOwnership(contract.address, { from: owner });
     await contract.setProjectContract(project.address, { from: owner });
+    await contract.setAdmins([holder1, holder2, holder3]);
     await contract.send(toWei(10), { from: holder3 });
     await contract.transfer(contract.address, toWei(defaults.totalSupply/2), { from: owner });
     transaction = await contract.openToPublic({ from: holder1 });
-    expectEvent.inTransaction(transaction.tx, project, 'ConfirmationRequired', { confirmations: '1', required: '2' });
-    await contract.openToPublic({ from: holder2 });
+    expectEvent(transaction, 'ConfirmationRequired', { confirmations: '1', required: '2' });
+    transaction = await contract.openToPublic({ from: holder2 });
+    expectEvent(transaction, 'ConfirmationComplete', { confirmations: '2' });
     assert.isTrue(await contract.isOpenToPublic());
   });
 });
-
-// test contracts not in rewards

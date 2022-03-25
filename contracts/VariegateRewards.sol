@@ -12,6 +12,7 @@ contract VariegateRewards is RewardsTracker {
   using SafeMathInt for int256;
 
   IUniswapV2Router02 public immutable uniswapV2Router;
+  address payable public variegate;
 
   struct Holder {
     uint256 index;
@@ -71,7 +72,7 @@ contract VariegateRewards is RewardsTracker {
   }
 
   modifier onlyAdmin() { // CALL COMES FROM OWNER OR PROJECT ADMIN
-    require(_msgSender()==owner() || isAdmin(_msgSender()), "Caller invalid");
+    require(isAdmin(_msgSender()), "Caller invalid");
     _;
   }
 
@@ -288,6 +289,11 @@ contract VariegateRewards is RewardsTracker {
 
   // PRIVATE
 
+  function _transferOwnership(address newOwner) internal override {
+    super._transferOwnership(newOwner);
+    if (isContract(newOwner)) variegate = payable(newOwner);
+  }
+
   function ageInDays(uint32 stamped) private view returns (uint32) {
     return ageInHours(stamped) / 24;
   }
@@ -323,11 +329,11 @@ contract VariegateRewards is RewardsTracker {
   }
 
   function isAdmin(address account) private view returns(bool) {
-    return (isContract(owner()) && Variegate(payable(owner())).isAdmin(account));
+    return (!isContract(owner()) && account==owner()) || (isContract(owner()) && Variegate(variegate).isAdmin(account));
   }
 
   function isConfirmed(uint256 required) private returns (bool) {
-    return required < 2 || !isContract(owner()) || Variegate(payable(owner())).confirmCall(required, msg.sender, msg.sig, msg.data);
+    return required < 2 || !isContract(owner()) || Variegate(variegate).confirmCall(required, msg.sender, msg.sig, msg.data);
   }
 
   function isContract(address key) private view returns (bool) {
@@ -337,7 +343,7 @@ contract VariegateRewards is RewardsTracker {
   function setBalance(address account, uint256 newBalance) private {
     if (newBalance < minimumBalance || holder[account].excluded!=0) { // BELOW MIN OR EXCLUDED
       totalTracked -= holder[account].balance;
-      putBalance(account, 0);
+      updateBalance(account, 0);
       holderRemove(account); // REMOVE FROM ARRAY TO THIN STORAGE
       return;
     }
@@ -380,7 +386,7 @@ contract VariegateRewards is RewardsTracker {
 
   function putWeighted(address account) private {
     holder[account].percent = stakePercent(account);
-    putBalance(account, weightedBalance(account));
+    updateBalance(account, weightedBalance(account));
   }
 
   function sendReward(address payable account, uint256 amount) internal override returns (bool) {

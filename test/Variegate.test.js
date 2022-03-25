@@ -86,7 +86,7 @@ contract('Variegate', function (accounts) {
     assert.isFalse(await contract.isPresale(holder1));
   });
 
-  it('allows only project to change project contract', async function () {
+  it('allows only owner to change project contract', async function () {
     await expectRevert(contract.setProjectContract(holder1, { from: holder1 }), 'Caller invalid');
   });
 
@@ -94,23 +94,29 @@ contract('Variegate', function (accounts) {
     await expectRevert(contract.setProjectContract(holder1, { from: project }), "Not a contract");
   });
 
-  it('requires the value of ProjectWallet to change if updated', async function () {
-    await expectRevert(contract.setProjectContract(ZERO, { from: owner }), "Value unchanged");
+  it('requires the token own project contract if updated', async function () {
+    newContract = await VariegateProject.new();
+    await expectRevert(contract.setProjectContract(newContract.address, { from: owner }), "Token must own project");
   });
 
-  it('allows project address to set project contract', async function () {
+  it('requires the value of project contract to change if updated', async function () {
+    await expectRevert(contract.setProjectContract(owner, { from: owner }), "Value unchanged");
+  });
+
+  it('allows owner to set project contract', async function () {
     newContract = await VariegateProject.new();
+    await newContract.transferOwnership(contract.address, { from: owner });
     transaction = await contract.setProjectContract(newContract.address, { from: owner });
-    expectEvent(transaction, 'ProjectContractChanged', { from: ZERO, to: newContract.address });
+    expectEvent(transaction, 'ProjectContractChanged', { from: owner, to: newContract.address });
     assert.equal(await contract.project(), newContract.address);
   });
 
-  it('allows only project to change rewards contract', async function () {
+  it('allows only owner to change rewards contract', async function () {
     await expectRevert(contract.setRewardsContract(holder1, { from: holder1 }), 'Caller invalid');
   });
 
-  it('requires the value of rewards to change if updated', async function () {
-    await expectRevert(contract.setRewardsContract(ZERO, { from: owner }), "Value unchanged");
+  it('requires the value of rewards contract to change if updated', async function () {
+    await expectRevert(contract.setRewardsContract(owner, { from: owner }), "Value unchanged");
   });
 
   it('requires rewards contract to be set to a contract', async function () {
@@ -122,11 +128,11 @@ contract('Variegate', function (accounts) {
     await expectRevert(contract.setRewardsContract(newContract.address, { from: owner }), "Token must own tracker");
   });
 
-  it('allows project to set rewards contract', async function () {
+  it('allows owner to set rewards contract', async function () {
     newContract = await VariegateRewards.new();
     await newContract.transferOwnership(contract.address, { from: owner });
-    transaction = await contract.setRewardsContract(newContract.address, { from: project });
-    expectEvent(transaction, 'RewardsContractChanged', { from: ZERO, to: newContract.address });
+    transaction = await contract.setRewardsContract(newContract.address, { from: owner });
+    expectEvent(transaction, 'RewardsContractChanged', { from: owner, to: newContract.address });
     assert.equal(await contract.rewards(), newContract.address);
   });
 

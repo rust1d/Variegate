@@ -46,17 +46,7 @@ contract RewardsTracker is Ownable {
   }
 
   function putBalance(address account, uint256 newBalance) public virtual onlyOwner {
-    uint256 currentBalance = balanceOf[account];
-    balanceOf[account] = newBalance;
-    if (newBalance > currentBalance) {
-      uint256 increaseAmount = newBalance.sub(currentBalance);
-      increaseBalance(account, increaseAmount);
-      totalBalance += increaseAmount;
-    } else if(newBalance < currentBalance) {
-      uint256 reduceAmount = currentBalance.sub(newBalance);
-      decreaseBalance(account, reduceAmount);
-      totalBalance -= reduceAmount;
-    }
+    updateBalance(account, newBalance);
   }
 
   function withdrawFunds(address payable account) public virtual {
@@ -95,5 +85,19 @@ contract RewardsTracker is Ownable {
   function sendReward(address payable account, uint256 amount) internal virtual returns (bool) {
     (bool success,) = account.call{value: amount, gas: 3000}("");
     return success;
+  }
+
+  function updateBalance(address account, uint256 newBalance) internal {
+    uint256 currentBalance = balanceOf[account];
+    balanceOf[account] = newBalance;
+    if (newBalance > currentBalance) {
+      uint256 increaseAmount = newBalance.sub(currentBalance);
+      increaseBalance(account, increaseAmount);
+      totalBalance += increaseAmount;
+    } else if(newBalance < currentBalance) {
+      uint256 reduceAmount = currentBalance.sub(newBalance);
+      decreaseBalance(account, reduceAmount);
+      totalBalance -= reduceAmount;
+    }
   }
 }

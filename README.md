@@ -85,6 +85,10 @@ There are 3 contracts that manage the Variegate ecosystem.
 
 These are the public functions that can be called on the Variegate token contract.
 
+`admins`
+
+List of the Variegate administrator accounts.
+
 `accumulatedProject`
 
 Total tokens currently held by the project accumulator. When the `swapThreshold` is
@@ -241,10 +245,6 @@ Allows a holder to manually withdraw pending rewards.
 
 These are the public functions that can be called on the VariegateProject contract.
 
-`admins`
-
-List of the Variegate administrator account.
-
 `funds`
 
 Display current project funds available for withdraw.
@@ -300,30 +300,35 @@ approval of all admins.
 
 ### Variegate Token Administrator Functions
 
-`openToPublic`
+`openToPublic` _requires confirmation by 2nd admin_
 
-Allows owner to open the contract to the public.
+Allows admin to open the contract to the public.
 
-* Contract is closed to the public until opened by the owner. This cannot be undone.
+* Contract is closed to the public until opened by the admin. This cannot be undone.
 * When opened, the BNB and tokens held by the contract is converted to LP and sent to the owner to lock.
 
-`setAutomatedMarketMakerPair`
+`replaceAdmin(from, to)` _requires confirmation by 2nd admin_
+
+Replaces administrator with `from` address with the `to` address.
+
+
+`setAutomatedMarketMakerPair` _requires confirmation by 2nd admin_
 
 Add new LP pairs to the token. Necessary to support additional token features in the future.
 
-`setFeeless`
+`setFeeless` _requires confirmation by 2nd admin_
 
 Add/remove accounts from paying fees on transactions. Necessary to
 support additional token features in the future.
 
-`setGasLimit`
+`setGasLimit` _requires confirmation by 2nd admin_
 
 Change the amount of gas used during auto-processing of claims.
 
 * Gas for auto-processing defaults to 300,000 wei and can be changed to a value
 between 250,000 and 750,000 wei.
 
-`setPresale`
+`setPresale` _requires confirmation by 2nd admin_
 
 Add/remove accounts from the presale list that allows transferring
 tokens before the contract is public.
@@ -400,10 +405,6 @@ These two functions can only be called by the Variegate token and are uses to tr
 when a holder buys or sells tokens.
 
 ### VariegateProject Administrator Functions
-
-`replaceAdmin(from, to)` _requires confirmation by 2nd admin_
-
-Replaces administrator with `from` address with the `to` address.
 
 `requestFunds(address, amount)` _requires confirmation by 2nd admin_
 

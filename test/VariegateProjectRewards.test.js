@@ -70,8 +70,8 @@ contract('VariegateProject', function (accounts) {
 
   it('only distributes funds when token set and min balance met', async function () {
     token = await Variegate.new();
-    await contract.setToken(token.address, { from: owner });
     await token.transfer(holder1, toWei(MIN_BALANCE), { from: owner });
+    await contract.transferOwnership(token.address, { from: owner });
     await contract.withdrawFunds(holder1); // UPDATES BALANCES
 
     await contract.send(toWei(100), { from: holder9 });
@@ -110,10 +110,11 @@ contract('VariegateProject', function (accounts) {
   });
 
   it('processes all shareholder', async function () {
-    await contract.setToken(token.address, { from: owner });
+    token = await Variegate.new();
     for (let idx=1;idx<shareholders.length;idx++) {
       await token.transfer(shareholders[idx], toWei(MIN_BALANCE), { from: owner });
     }
+    await contract.transferOwnership(token.address, { from: owner });
 
     let complete = (await contract.paybackBNB()).toString() + '0';
     await contract.send(complete, { from: holder9 }); // SEND ENOUGH TO COVER COSTS
