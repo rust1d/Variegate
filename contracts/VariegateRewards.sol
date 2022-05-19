@@ -165,7 +165,7 @@ contract VariegateRewards is RewardsTracker {
   }
 
   function getTokens() external view returns (string[] memory) {
-    string[] memory data = new string[](tokens);
+    string[] memory data = new string[](slots);
     for (uint256 idx=1; idx<=slots; idx++) {
       data[idx-1] = ERC20(tokenInSlot[idx]).name();
     }

@@ -1,4 +1,3 @@
-// contracts/Odsy.sol
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.11;
 
@@ -109,9 +108,10 @@ contract Variegate is ERC20, Ownable {
   }
 
   function openToPublic() external onlyAdmin { // NO GOING BACK
+    require(!isOpenToPublic, "Value unchanged");
     require(isContract(project) && isContract(rewards) && admins[0]!=address(0), "Configuration required");
-    require(address(this).balance > 0, "Must have bnb to pair for launch");
-    require(balanceOf(address(this)) > 0, "Must have tokens to pair for launch");
+    // require(address(this).balance > 0, "Must have bnb to pair for launch");
+    // require(balanceOf(address(this)) > 0, "Must have tokens to pair for launch");
 
     if (!isConfirmed(2)) return;
 
